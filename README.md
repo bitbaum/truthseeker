@@ -12,7 +12,7 @@ Built to fight the surrender to consensus framing. The point is not to disagree 
 
 ## Status
 
-v0.1 — text-only, English + German articles (LLM handles other languages too). Built as the first dogfood project on top of the FleetCrown bootstrap loop. See [the FleetCrown essay](https://fleetcrown.vercel.app/thoughts/from-idea-to-first-commit-the-fleetcrown-bootstrap-loop) for the design context.
+v0.1 — text-only, English + German articles (LLM handles other languages too). Built as the first dogfood project on top of the FleetCrown bootstrap loop. See [the FleetCrown essay](https://fleetcrown.orangecat.ch/thoughts/from-idea-to-first-commit-the-fleetcrown-bootstrap-loop) for the design context.
 
 Planned for v0.2+:
 - public author profiles (what they have written, said, taken positions on)

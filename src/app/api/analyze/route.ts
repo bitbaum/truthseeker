@@ -7,7 +7,7 @@
 // logic lives where it belongs.
 
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeUrl } from "@/lib/analysis";
+import { analyzeUrl, analyzeText } from "@/lib/analysis";
 
 // LLM completion + article fetch can together hit 30-45 seconds on a
 // long article with a slow upstream. Match the timeout in llm.ts with
@@ -37,8 +37,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "URL must use http or https" }, { status: 400 });
   }
 
+  // Escape hatch for bot-gated/paywalled sites: the caller fetches the body
+  // out-of-band (logged-in browser, etc.) and pastes it in. The URL still
+  // rides along so the analysis attributes the source correctly.
+  const text = (body as { text?: unknown })?.text;
+
   try {
-    const result = await analyzeUrl(parsed.toString());
+    const result =
+      typeof text === "string" && text.trim()
+        ? await analyzeText({ url: parsed.toString(), title: null, text })
+        : await analyzeUrl(parsed.toString());
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";

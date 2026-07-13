@@ -12,6 +12,8 @@ type SubmitState =
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [pastedText, setPastedText] = useState("");
+  const [showPasteBox, setShowPasteBox] = useState(false);
   const [state, setState] = useState<SubmitState>({ status: "idle" });
 
   async function analyze(e: React.FormEvent) {
@@ -22,7 +24,10 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({
+          url: url.trim(),
+          ...(pastedText.trim() ? { text: pastedText.trim() } : {}),
+        }),
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
@@ -71,6 +76,25 @@ export default function Home() {
           {state.status === "loading" ? "Examining…" : "Examine"}
         </button>
       </form>
+
+      <div className="mt-2.5">
+        <button
+          type="button"
+          onClick={() => setShowPasteBox((v) => !v)}
+          className="font-mono text-[11px] uppercase tracking-[0.1em] text-text-muted underline decoration-dotted underline-offset-4 hover:text-text"
+        >
+          {showPasteBox ? "Hide paste box" : "Site blocking us? Paste the article text instead"}
+        </button>
+        {showPasteBox && (
+          <textarea
+            value={pastedText}
+            onChange={(e) => setPastedText(e.target.value)}
+            placeholder="Paste the article body here (needed when a site blocks automated fetches, e.g. paywalls) — the URL above still rides along for attribution."
+            rows={6}
+            className="mt-2 w-full rounded-card border border-border bg-surface px-4 py-3 font-mono text-xs text-text placeholder-text-muted shadow-card focus:border-brand focus:outline-none"
+          />
+        )}
+      </div>
 
       {state.status === "idle" && <EmptyState />}
       {state.status === "loading" && <LoadingState />}

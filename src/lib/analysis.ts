@@ -77,11 +77,13 @@ export async function analyzeText(opts: {
     throw new Error(`Article text was too short (${opts.text?.length ?? 0} chars). Need at least 200 chars of body to analyze meaningfully.`);
   }
 
-  // Cap the article text we send. llama-3.3-70b-versatile has a large
-  // context window but real articles rarely exceed 50k characters of body
-  // text; trimming the tail keeps the prompt cheap and avoids hitting any
-  // unexpected limits.
-  const MAX_CHARS = 40_000;
+  // Cap the article text we send. The model's context window is large, but
+  // this Groq org's on_demand tier caps at 12,000 tokens/minute (prompt +
+  // completion combined) — the real constraint, not the model. Budget:
+  // ~750 tokens system+wrapper overhead, 4000 reserved for the completion,
+  // leaving ~7000 tokens (~3.3 chars/token, conservative for dense prose)
+  // for article text.
+  const MAX_CHARS = 20_000;
   const articleText = opts.text.length > MAX_CHARS
     ? opts.text.slice(0, MAX_CHARS) + "\n[...truncated]"
     : opts.text;

@@ -12,17 +12,16 @@ type SubmitState =
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [pastedText, setPastedText] = useState("");
   const [state, setState] = useState<SubmitState>({ status: "idle" });
 
-  async function analyze(e: React.FormEvent) {
-    e.preventDefault();
-    if (!url.trim()) return;
+  async function submit(text?: string) {
     setState({ status: "loading" });
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: url.trim(), ...(text ? { text } : {}) }),
       });
       const body = await res.json();
       if (!res.ok || !body.ok) {
@@ -36,6 +35,18 @@ export default function Home() {
         message: e instanceof Error ? e.message : "Network error",
       });
     }
+  }
+
+  function analyze(e: React.FormEvent) {
+    e.preventDefault();
+    if (!url.trim()) return;
+    submit();
+  }
+
+  function analyzeWithPastedText(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pastedText.trim()) return;
+    submit(pastedText);
   }
 
   return (
@@ -74,7 +85,16 @@ export default function Home() {
 
       {state.status === "idle" && <EmptyState />}
       {state.status === "loading" && <LoadingState />}
-      {state.status === "error" && <ErrorState message={state.message} />}
+      {state.status === "error" && (
+        <>
+          <ErrorState message={state.message} />
+          <PasteTextFallback
+            value={pastedText}
+            onChange={setPastedText}
+            onSubmit={analyzeWithPastedText}
+          />
+        </>
+      )}
       {state.status === "done" && <Result result={state.result} />}
     </main>
   );
@@ -163,6 +183,38 @@ function ErrorState({ message }: { message: string }) {
       </p>
       <p className="mt-1.5 text-sm text-text">{message}</p>
     </div>
+  );
+}
+
+function PasteTextFallback({
+  value,
+  onChange,
+  onSubmit,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="mt-4 space-y-2.5">
+      <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
+        Or paste the article text directly
+      </p>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Paste the article body here — copy it from a logged-in browser tab if the site blocked the fetch."
+        rows={8}
+        className="w-full rounded-card border border-border bg-surface px-4 py-3 font-mono text-xs text-text placeholder-text-muted shadow-card transition-colors focus:border-brand focus:outline-none"
+      />
+      <button
+        type="submit"
+        disabled={!value.trim()}
+        className="rounded-card bg-text px-6 py-3 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-bg transition-opacity hover:opacity-85 disabled:opacity-50"
+      >
+        Examine pasted text
+      </button>
+    </form>
   );
 }
 

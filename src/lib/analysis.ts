@@ -37,6 +37,8 @@ export interface Analysis {
 export interface AnalysisResult {
   analysis: Analysis;
   fetched: Pick<FetchedArticle, "url" | "status" | "title" | "textLength">;
+  /** True when the article text exceeded MAX_CHARS and was cut before reaching the model. */
+  truncated: boolean;
   /** Tokens / words / etc. that the caller might want to surface in the UI. */
   durationMs: number;
 }
@@ -84,7 +86,8 @@ export async function analyzeText(opts: {
   // leaving ~7000 tokens (~3.3 chars/token, conservative for dense prose)
   // for article text.
   const MAX_CHARS = 20_000;
-  const articleText = opts.text.length > MAX_CHARS
+  const truncated = opts.text.length > MAX_CHARS;
+  const articleText = truncated
     ? opts.text.slice(0, MAX_CHARS) + "\n[...truncated]"
     : opts.text;
 
@@ -117,8 +120,11 @@ export async function analyzeText(opts: {
       url: opts.url,
       status: opts.fetchedStatus ?? 200,
       title: opts.title,
-      textLength: opts.text.length,
+      // Length actually sent to the model, not the raw fetched/pasted length —
+      // otherwise the UI reports a char count larger than what was analyzed.
+      textLength: Math.min(opts.text.length, MAX_CHARS),
     },
+    truncated,
     durationMs: Date.now() - start,
   };
 }

@@ -314,7 +314,8 @@ function Result({ result }: { result: AnalysisResult }) {
 
       <footer className="rule-forensic mt-2 h-px w-full" />
       <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
-        examined {result.fetched.textLength.toLocaleString()} chars · {result.durationMs}ms
+        examined {result.fetched.textLength.toLocaleString()} chars
+        {result.truncated && " (truncated — article was longer)"} · {result.durationMs}ms
       </p>
     </article>
   );

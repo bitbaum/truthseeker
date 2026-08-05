@@ -48,6 +48,16 @@ export async function fetchArticle(url: string): Promise<FetchedArticle> {
   });
 
   const contentType = res.headers.get("content-type");
+  // Reject non-HTML payloads before spending an LLM call on them. Without
+  // this, a PDF or image URL silently comes back as "textLength > 200"
+  // (binary bytes decoded as garbage text) and produces a nonsense analysis
+  // with no visible error — the failure mode this guards against is silent,
+  // not loud.
+  if (contentType && !/html|xml|text\/plain/i.test(contentType)) {
+    throw new Error(
+      `URL returned non-HTML content (content-type: ${contentType}). PDFs, images, and other non-HTML formats aren't supported yet — try a text/HTML version of the source, or paste the text directly.`,
+    );
+  }
   const html = await res.text();
 
   // Title: <title>...</title> first, else the first <h1>...</h1>.

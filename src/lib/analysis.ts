@@ -105,14 +105,16 @@ export async function analyzeText(opts: {
     },
   );
 
-  let analysis: Analysis;
+  let parsed: unknown;
   try {
-    analysis = JSON.parse(completion) as Analysis;
+    parsed = JSON.parse(completion);
   } catch {
     throw new Error(
       `LLM returned non-JSON output (this is a model quirk — usually fixed by retrying). First 300 chars: ${completion.slice(0, 300)}`,
     );
   }
+
+  const analysis = validateAnalysisShape(parsed);
 
   return {
     analysis,
@@ -127,4 +129,62 @@ export async function analyzeText(opts: {
     truncated,
     durationMs: Date.now() - start,
   };
+}
+
+const CLAIM_TYPES = new Set(["factual", "normative", "causal"]);
+const EVIDENCE_QUALITIES = new Set(["strong", "moderate", "weak", "asserted"]);
+
+/**
+ * The LLM call above uses Groq's JSON mode, which only guarantees syntactically
+ * valid JSON — not that it matches the Analysis shape. A response missing
+ * core_claims/named_sources, or using a claim `type` outside the enum, parses
+ * fine and then throws deep in React rendering (page.tsx calls .map()/.length
+ * on those arrays and indexes CLAIM_TYPES by `type` unconditionally) — a crash
+ * with no readable error. Validate here so a bad response fails the same clear,
+ * catchable way a non-JSON response already does.
+ */
+function validateAnalysisShape(v: unknown): Analysis {
+  const fail = (why: string): never => {
+    throw new Error(`LLM returned malformed analysis JSON (${why}). Try again.`);
+  };
+
+  if (typeof v !== "object" || v === null) return fail("not an object");
+  const a = v as Record<string, unknown>;
+
+  const str = (k: string) => typeof a[k] === "string";
+  const strOrNull = (k: string) => a[k] === null || typeof a[k] === "string";
+
+  if (!str("title")) return fail("title missing");
+  if (!strOrNull("author")) return fail("author must be string or null");
+  if (!str("publication")) return fail("publication missing");
+  if (!strOrNull("publication_date")) return fail("publication_date must be string or null");
+  if (!str("language")) return fail("language missing");
+  if (!str("summary")) return fail("summary missing");
+  if (!str("first_principles_critique")) return fail("first_principles_critique missing");
+  if (!str("biases_to_consider")) return fail("biases_to_consider missing");
+  if (!str("what_would_change_assessment")) return fail("what_would_change_assessment missing");
+
+  if (!Array.isArray(a.core_claims)) return fail("core_claims is not an array");
+  for (const c of a.core_claims as unknown[]) {
+    if (typeof c !== "object" || c === null) return fail("a core_claims entry is not an object");
+    const claim = c as Record<string, unknown>;
+    if (typeof claim.claim !== "string") return fail("a core_claims entry is missing 'claim'");
+    if (!CLAIM_TYPES.has(claim.type as string)) return fail(`a core_claims entry has invalid type '${claim.type}'`);
+    if (typeof claim.supported_in_article !== "boolean")
+      return fail("a core_claims entry's supported_in_article is not a boolean");
+    if (!EVIDENCE_QUALITIES.has(claim.evidence_quality as string))
+      return fail(`a core_claims entry has invalid evidence_quality '${claim.evidence_quality}'`);
+  }
+
+  if (!Array.isArray(a.named_sources)) return fail("named_sources is not an array");
+  for (const s of a.named_sources as unknown[]) {
+    if (typeof s !== "object" || s === null) return fail("a named_sources entry is not an object");
+    const source = s as Record<string, unknown>;
+    if (typeof source.name !== "string") return fail("a named_sources entry is missing 'name'");
+    if (typeof source.role !== "string") return fail("a named_sources entry is missing 'role'");
+    if (typeof source.attributed_claim !== "string")
+      return fail("a named_sources entry is missing 'attributed_claim'");
+  }
+
+  return a as unknown as Analysis;
 }

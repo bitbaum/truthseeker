@@ -13,9 +13,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeUrl, analyzeText } from "@/lib/analysis";
 
-// LLM completion + article fetch can together hit 30-45 seconds on a
-// long article with a slow upstream. Match the timeout in llm.ts with
-// a small margin.
+// Article fetch and the LLM call run sequentially, each behind its own
+// AbortSignal.timeout — 20s (article-fetch.ts) + 35s (llm.ts) = 55s worst
+// case. Keep maxDuration comfortably above that sum: if it's tighter, a
+// slow-but-not-hung request gets killed by the platform's abrupt cutoff
+// instead of failing through our own clean, catchable timeout errors.
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {

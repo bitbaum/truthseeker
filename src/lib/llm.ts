@@ -10,8 +10,9 @@ export interface LLMOptions {
   maxTokens?: number;
   /** Temperature. Default 0.2 — deterministic enough for structured analysis. */
   temperature?: number;
-  /** Abort timeout in ms. Default 45_000 — articles can take a while at full
-   *  context for a 70B model. */
+  /** Abort timeout in ms. Default 35_000. Sized to leave headroom under the
+   *  API route's 60s maxDuration once article-fetch's own 20s timeout is
+   *  added — see the budget note in route.ts. */
   timeoutMs?: number;
   /** System prompt prepended to the messages. */
   systemPrompt?: string;
@@ -30,7 +31,7 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
   const {
     maxTokens = 4000,
     temperature = 0.2,
-    timeoutMs = 45_000,
+    timeoutMs = 35_000,
     systemPrompt,
     jsonMode,
   } = opts;

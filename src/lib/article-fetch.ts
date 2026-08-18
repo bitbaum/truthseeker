@@ -64,7 +64,7 @@ export async function fetchArticle(url: string): Promise<FetchedArticle> {
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
   const rawTitle = (titleMatch?.[1] ?? h1Match?.[1] ?? "").trim();
-  const title = rawTitle ? stripTags(rawTitle).slice(0, 300) : null;
+  const title = rawTitle ? decodeEntities(stripTags(rawTitle)).slice(0, 300) : null;
 
   // Strip noise then collapse whitespace. Order matters — kill scripts and
   // styles BEFORE the broad tag strip, because their CDATA can contain

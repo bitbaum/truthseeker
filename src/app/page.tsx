@@ -17,6 +17,7 @@ export default function Home() {
 
   async function submit(text?: string) {
     setState({ status: "loading" });
+    setPastedText("");
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",

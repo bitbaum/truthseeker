@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Per-session agent worktrees — scratch, never part of the repo.
+.claude/worktrees/

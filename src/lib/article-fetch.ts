@@ -5,6 +5,8 @@
 // is the noise that breaks LLM attention (script bodies, CSS, nav menus
 // repeating the publication's section names 50 times).
 
+import { decodeHTML } from "entities";
+
 export interface FetchedArticle {
   url: string;
   /** Status code returned by the fetch. */
@@ -63,8 +65,7 @@ export async function fetchArticle(url: string): Promise<FetchedArticle> {
   // Title: <title>...</title> first, else the first <h1>...</h1>.
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  const rawTitle = (titleMatch?.[1] ?? h1Match?.[1] ?? "").trim();
-  const title = rawTitle ? decodeEntities(stripTags(rawTitle)).slice(0, 300) : null;
+  const title = htmlToText(titleMatch?.[1] ?? h1Match?.[1] ?? "").slice(0, 300) || null;
 
   // Strip noise then collapse whitespace. Order matters — kill scripts and
   // styles BEFORE the broad tag strip, because their CDATA can contain
@@ -80,9 +81,7 @@ export async function fetchArticle(url: string): Promise<FetchedArticle> {
     .replace(/<header[\s\S]*?<\/header>/gi, " ")
     .replace(/<form[\s\S]*?<\/form>/gi, " ");
 
-  body = stripTags(body);
-  body = decodeEntities(body);
-  body = body.replace(/\s+/g, " ").trim();
+  body = htmlToText(body);
 
   return {
     url,
@@ -94,27 +93,19 @@ export async function fetchArticle(url: string): Promise<FetchedArticle> {
   };
 }
 
-function stripTags(s: string): string {
-  return s.replace(/<[^>]+>/g, " ");
+/**
+ * An HTML fragment reduced to the plain text a reader would see: tags dropped,
+ * entities decoded, whitespace collapsed. Both the title and the body go
+ * through this, so they can never again disagree about what "decoded" means —
+ * the split between them is what #12 had to repair.
+ *
+ * Decoding happens AFTER the tag strip, never before: decoding first would turn
+ * an escaped `&lt;script&gt;` in the prose into a real tag for stripTags to eat.
+ */
+function htmlToText(fragment: string): string {
+  return decodeHTML(stripTags(fragment)).replace(/\s+/g, " ").trim();
 }
 
-// Decode the entities that actually show up in mainstream HTML. We do not
-// need a full XML entity table — a handful covers ~99% of real text.
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&#8211;/g, "–")
-    .replace(/&#8212;/g, "—")
-    .replace(/&#8216;/g, "‘")
-    .replace(/&#8217;/g, "’")
-    .replace(/&#8220;/g, "“")
-    .replace(/&#8221;/g, "”")
-    .replace(/&#8230;/g, "…")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+function stripTags(s: string): string {
+  return s.replace(/<[^>]+>/g, " ");
 }

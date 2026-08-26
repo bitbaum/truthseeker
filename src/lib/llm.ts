@@ -1,9 +1,26 @@
-// Groq client — single source of truth for the model + endpoint.
-// Adapted from FleetCrown's src/lib/groq.ts. If we ever swap LLM providers
-// (Claude, OpenAI, local), this is the one file to change.
+// LLM client — single source of truth for HOW this app calls a model.
+//
+// It is deliberately no longer the source of truth for WHICH model. It used to
+// be, and that is what broke it: `LLM_MODEL` pinned `llama-3.3-70b-versatile`,
+// Groq retired the entire llama-3.x family, and every analysis in this app
+// answered HTTP 404 with a key that was perfectly valid. Nothing here was
+// wrong when it was written; a constant simply cannot stay true about someone
+// else's catalogue.
+//
+// So the ids come from `ai-kit`, which carries one list for the whole fleet and
+// re-probes it against the live catalogues, and a daily audit
+// (dotfiles/scripts/ci/model-pin-audit.mjs) asks both vendors whether those ids
+// still exist. One place to fix the next retirement instead of six.
+//
+// And the chain is walked, not merely consulted. A retired id, a busy model or
+// a spent daily budget steps aside for the next link rather than surfacing as a
+// failed analysis. Crossing VENDORS is the half that matters: a smaller model
+// at the same vendor draws on the same org-wide daily budget, so when that runs
+// dry every same-vendor "fallback" is already dead. Set OPENROUTER_API_KEY
+// alongside GROQ_API_KEY and this app gains a second meter; with one key it
+// still gets the model-level fallback, which is what rot actually looks like.
 
-export const LLM_MODEL = "llama-3.3-70b-versatile";
-const LLM_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+import { freeChain, usableChain } from "ai-kit";
 
 export interface LLMOptions {
   /** Max tokens in the completion. Default 4000 — generous for structured JSON. */
@@ -25,8 +42,13 @@ export interface LLMOptions {
  * Callers handle parsing for their own structured-output shape.
  */
 export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<string> {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("GROQ_API_KEY not set in environment");
+  // `usableChain` drops any vendor whose key is absent, so a deployment with
+  // only GROQ_API_KEY gets a Groq-only chain rather than links that would 401
+  // on every request.
+  const links = usableChain(freeChain("TRUTHSEEKER"), process.env);
+  if (links.length === 0) {
+    throw new Error("No LLM provider configured: set GROQ_API_KEY or OPENROUTER_API_KEY");
+  }
 
   const {
     maxTokens = 4000,
@@ -40,25 +62,64 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  const res = await fetch(LLM_API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: LLM_MODEL,
-      messages,
-      max_tokens: maxTokens,
-      temperature,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  // The timeout is PER LINK, not for the walk as a whole. Sharing one deadline
+  // across the chain would let a first vendor that hangs consume the budget of
+  // every fallback behind it, which is the case the fallback exists for.
+  let lastError: Error | null = null;
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`LLM HTTP ${res.status}: ${body.slice(0, 200)}`);
+  for (const link of links) {
+    const key = process.env[link.provider.keyEnv];
+    if (!key) continue;
+
+    try {
+      const res = await fetch(`${link.provider.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model: link.model,
+          messages,
+          max_tokens: maxTokens,
+          temperature,
+          ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        lastError = new Error(
+          `LLM HTTP ${res.status} at ${link.provider.id}/${link.model}: ${body.slice(0, 200)}`,
+        );
+        // 4xx is about this model or this key — the next link is a different
+        // model, often a different vendor, so it is worth asking. 5xx is the
+        // vendor being unwell, likewise. There is no status here that makes
+        // trying a DIFFERENT model pointless, so every failure falls through.
+        continue;
+      }
+
+      const data = (await res.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = (data?.choices?.[0]?.message?.content ?? "").trim();
+      // A 200 carrying empty content is a failure that reads like success —
+      // one free model was observed doing exactly this. Treat it as a miss and
+      // let the next link answer, rather than returning "" to the caller.
+      if (!content) {
+        lastError = new Error(`LLM returned empty content at ${link.provider.id}/${link.model}`);
+        continue;
+      }
+      return content;
+    } catch (err) {
+      // Timeout or transport failure. Same reasoning: the next link is a
+      // different model and possibly a different vendor.
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
-  const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  return (data?.choices?.[0]?.message?.content ?? "").trim();
+
+  // Name the whole chain, not just the last link. "gpt-oss-120b failed" sends
+  // the reader after one model; "all 2 links failed" says the shape of the
+  // problem is the key, the network or the budget.
+  throw new Error(
+    `LLM chain exhausted — all ${links.length} link(s) failed. Last: ${lastError?.message ?? "unknown"}`,
+  );
 }

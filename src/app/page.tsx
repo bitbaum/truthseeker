@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { AnalysisResult } from "@/lib/analysis";
 import { CLAIM_TYPES, CLAIM_TYPE_ORDER } from "@/lib/claim-types";
+import { capturePaste, pasteFor, NO_PASTE } from "@/lib/pasted-body";
 
 type SubmitState =
   | { status: "idle" }
@@ -12,12 +13,15 @@ type SubmitState =
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [pastedText, setPastedText] = useState("");
+  // The pasted body is held together with the URL it was captured for, so a
+  // paste can never be analyzed under a different article — and never has to
+  // be thrown away to keep that true. See lib/pasted-body.
+  const [paste, setPaste] = useState(NO_PASTE);
+  const pastedText = pasteFor(paste, url);
   const [state, setState] = useState<SubmitState>({ status: "idle" });
 
   async function submit(text?: string) {
     setState({ status: "loading" });
-    setPastedText("");
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -91,7 +95,7 @@ export default function Home() {
           <ErrorState message={state.message} />
           <PasteTextFallback
             value={pastedText}
-            onChange={setPastedText}
+            onChange={(v) => setPaste(capturePaste(url, v))}
             onSubmit={analyzeWithPastedText}
           />
         </>

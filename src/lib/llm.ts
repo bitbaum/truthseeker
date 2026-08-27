@@ -96,9 +96,15 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
   // every fallback behind it, which is the case the fallback exists for.
   let lastError: Error | null = null;
 
+  // Vendors that answered "this key is not valid". Every remaining link at such
+  // a vendor would send the SAME key and get the same answer, so the walk skips
+  // them instead of spending a request to be told twice.
+  const rejected = new Map<string, { providerId: string; status: number }>();
+
   for (const link of links) {
     const key = process.env[link.provider.keyEnv];
     if (!key) continue;
+    if (rejected.has(link.provider.keyEnv)) continue;
 
     try {
       const res = await fetch(`${link.provider.baseUrl}/chat/completions`, {
@@ -119,10 +125,23 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
         lastError = new Error(
           `LLM HTTP ${res.status} at ${link.provider.id}/${link.model}: ${body.slice(0, 200)}`,
         );
-        // 4xx is about this model or this key — the next link is a different
-        // model, often a different vendor, so it is worth asking. 5xx is the
-        // vendor being unwell, likewise. There is no status here that makes
-        // trying a DIFFERENT model pointless, so every failure falls through.
+        // A rejected key is the one verdict that is about the VENDOR rather
+        // than the model: 401/403 says "not you", and every further link at
+        // this vendor presents the identical key. Note it and let the loop skip
+        // them — while still crossing to the next vendor, which is a different
+        // key and the whole reason the chain spans vendors.
+        //
+        // Everything else falls through link by link. A 404 is a retired id, a
+        // 429 a busy or spent model, a 5xx a vendor being unwell — all three
+        // are answered by asking a DIFFERENT model, which is what the next link
+        // is. Widening this skip beyond auth would quietly turn the chain back
+        // into the pin it replaced.
+        if (AUTH_REJECTED.has(res.status)) {
+          rejected.set(link.provider.keyEnv, {
+            providerId: link.provider.id,
+            status: res.status,
+          });
+        }
         continue;
       }
 
@@ -145,10 +164,45 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
     }
   }
 
-  // Name the whole chain, not just the last link. "gpt-oss-120b failed" sends
-  // the reader after one model; "all 2 links failed" says the shape of the
-  // problem is the key, the network or the budget.
+  // When every vendor rejected its key, the walk is not the story — the key is.
+  // "LLM chain exhausted … Last: HTTP 401" is true and useless: it reads as an
+  // outage at someone else's shop, and the reader goes looking for one. The
+  // fact worth surfacing is that a credential this app holds was refused, and
+  // what to do about it.
+  const configuredVendors = new Set(links.map((l) => l.provider.keyEnv));
+  if (rejected.size > 0 && rejected.size === configuredVendors.size) {
+    throw new Error(`${rejectedKeyMessage(rejected)} ${secondVendorHint(configuredVendors)}`.trim());
+  }
+
+  // Otherwise: name the whole chain, not just the last link. "gpt-oss-120b
+  // failed" sends the reader after one model; "all 2 links failed" says the
+  // shape of the problem is the key, the network or the budget.
   throw new Error(
     `LLM chain exhausted — all ${links.length} link(s) failed. Last: ${lastError?.message ?? "unknown"}`,
   );
+}
+
+/** HTTP statuses that mean "this key", not "this model". */
+const AUTH_REJECTED = new Set([401, 403]);
+
+function rejectedKeyMessage(rejected: Map<string, { providerId: string; status: number }>): string {
+  const named = [...rejected.entries()]
+    .map(([keyEnv, r]) => `${keyEnv} (${r.providerId}, HTTP ${r.status})`)
+    .join("; ");
+  const subject = rejected.size === 1 ? "key was" : "keys were";
+  return `LLM ${subject} rejected by the vendor: ${named}. Replace it — the chain never got as far as a model.`;
+}
+
+/**
+ * The vendors this app could reach but currently has no key for. Derived from
+ * the chain, so it stays true as the fleet chain grows — and it is the actual
+ * remedy for a rejected key, not a nicety: a second vendor is a second
+ * credential AND a second daily budget.
+ */
+function secondVendorHint(configured: Set<string>): string {
+  const unconfigured = [...new Set(freeChain(CHAIN_PREFIX).map((p) => p.keyEnv))].filter(
+    (keyEnv) => !configured.has(keyEnv),
+  );
+  if (unconfigured.length === 0) return "";
+  return `Setting ${unconfigured.join(" or ")} would also give this app a second vendor to fall back to.`;
 }

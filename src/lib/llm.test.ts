@@ -19,7 +19,10 @@
  * that the SECOND link is reached.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { callLLM } from './llm'
+import fs from 'node:fs'
+import path from 'node:path'
+import { freeChain } from 'ai-kit'
+import { callLLM, configuredLinks, noProviderMessage } from './llm'
 
 /** A chat-completions response carrying `content`. */
 function ok(content: string) {
@@ -209,5 +212,67 @@ describe('callLLM', () => {
     expect(body.response_format).toEqual({ type: 'json_object' })
     expect(body.messages[0]).toEqual({ role: 'system', content: 'be terse' })
     expect(body.messages[1]).toEqual({ role: 'user', content: 'the prompt' })
+  })
+})
+
+/**
+ * The preflight the CLI runs before spending ~20s fetching an article.
+ *
+ * `scripts/analyze-cli.ts` used to answer "is a vendor configured?" itself,
+ * with `if (!process.env.GROQ_API_KEY) exit(1)`. That was true on the day it
+ * was written and false the day #16 made this app multi-vendor: an environment
+ * holding only OPENROUTER_API_KEY runs perfectly through the HTTP route and was
+ * turned away at the CLI door — with an error naming a key it did not need.
+ * The CLI is how this project is used today, there being no deployment yet.
+ */
+describe('configuredLinks', () => {
+  it('finds nothing to walk when no vendor key is set', () => {
+    expect(configuredLinks({})).toEqual([])
+  })
+
+  it('is satisfied by ANY single vendor, not one privileged one', () => {
+    for (const provider of freeChain('TRUTHSEEKER')) {
+      const links = configuredLinks({ [provider.keyEnv]: 'test-key' })
+      expect(links.length).toBeGreaterThan(0)
+      // …and only that vendor's links, never one that would 401 on every call.
+      expect(links.every((l) => l.provider.keyEnv === provider.keyEnv)).toBe(true)
+    }
+  })
+
+  it('reads the environment it is handed, not the ambient one', () => {
+    process.env.GROQ_API_KEY = 'gsk_ambient'
+    expect(configuredLinks({})).toEqual([])
+  })
+})
+
+describe('noProviderMessage', () => {
+  it('names every key that would work, straight from the chain', () => {
+    const message = noProviderMessage()
+    for (const provider of freeChain('TRUTHSEEKER')) {
+      expect(message).toContain(provider.keyEnv)
+    }
+  })
+})
+
+/**
+ * The seam this whole exercise is about: a caller re-deriving which env vars
+ * count. Nothing errors when it drifts — the app simply refuses a setup it can
+ * serve, and only that caller is wrong. Gate it the way claim-types.test.ts
+ * gates its own SSOT, so the next vendor the fleet chain gains cannot leave the
+ * CLI behind again.
+ */
+describe('the CLI preflight', () => {
+  const cli = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'scripts', 'analyze-cli.ts'),
+    'utf8',
+  )
+
+  it('asks lib/llm which vendors count instead of testing a key by name', () => {
+    const code = cli
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('//'))
+      .join('\n')
+    expect(code).not.toMatch(/process\.env\.[A-Z0-9_]*API_KEY/)
+    expect(code).toContain('configuredLinks(')
   })
 })

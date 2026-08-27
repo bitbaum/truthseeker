@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# …and the template IS opted in. Next.js's default `.env*` swallows it, so the
+# file that tells a new operator which keys this app needs existed on disk and
+# reached nobody who cloned the repo.
+!.env.example
 
 # vercel
 .vercel

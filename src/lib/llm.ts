@@ -20,7 +20,36 @@
 // alongside GROQ_API_KEY and this app gains a second meter; with one key it
 // still gets the model-level fallback, which is what rot actually looks like.
 
-import { freeChain, usableChain } from "ai-kit";
+import { freeChain, usableChain, type Env, type Link } from "ai-kit";
+
+/** Prefix for this app's per-vendor model overrides (TRUTHSEEKER_GROQ_MODELS…). */
+const CHAIN_PREFIX = "TRUTHSEEKER";
+
+/**
+ * The links this process can actually walk, given the keys in `env`.
+ * Empty means no vendor is configured — the one thing a caller can usefully
+ * check BEFORE spending twenty seconds fetching an article it cannot analyze.
+ *
+ * Exported because the CLI needs exactly that preflight, and the version it
+ * used to carry (`if (!process.env.GROQ_API_KEY) exit(1)`) was a second, hand-
+ * written answer to a question this module already answers. It went stale the
+ * moment a second vendor could serve this app: an OpenRouter-only environment
+ * runs fine through the HTTP route and was refused at the CLI door.
+ */
+export function configuredLinks(env: Env = process.env): Link[] {
+  return usableChain(freeChain(CHAIN_PREFIX), env);
+}
+
+/**
+ * What to set when nothing is set — named by the chain rather than by hand.
+ * A literal list of key names is the same defect as a pinned model id: it is a
+ * constant claiming to be true about a catalogue it does not own, and it goes
+ * quietly wrong the day the fleet chain gains a vendor.
+ */
+export function noProviderMessage(): string {
+  const keys = [...new Set(freeChain(CHAIN_PREFIX).map((p) => p.keyEnv))];
+  return `No LLM provider configured: set ${keys.join(" or ")}`;
+}
 
 export interface LLMOptions {
   /** Max tokens in the completion. Default 4000 — generous for structured JSON. */
@@ -45,9 +74,9 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
   // `usableChain` drops any vendor whose key is absent, so a deployment with
   // only GROQ_API_KEY gets a Groq-only chain rather than links that would 401
   // on every request.
-  const links = usableChain(freeChain("TRUTHSEEKER"), process.env);
+  const links = configuredLinks();
   if (links.length === 0) {
-    throw new Error("No LLM provider configured: set GROQ_API_KEY or OPENROUTER_API_KEY");
+    throw new Error(noProviderMessage());
   }
 
   const {

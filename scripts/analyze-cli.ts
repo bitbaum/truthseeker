@@ -6,10 +6,15 @@
 //   GROQ_API_KEY=gsk_... npm run analyze -- "https://example.com/article"
 // or, with .env.local present:
 //   npm run analyze -- "https://example.com/article"
+//
+// Any vendor in the chain will do — OPENROUTER_API_KEY alone is a complete
+// configuration. This script asks lib/llm which keys count rather than naming
+// one, so the next vendor the fleet chain gains works here on the day it lands.
 
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { analyzeUrl, analyzeText, type AnalysisResult } from "../src/lib/analysis";
+import { configuredLinks, noProviderMessage } from "../src/lib/llm";
 
 function loadDotEnvLocal(): void {
   const path = join(process.cwd(), ".env.local");
@@ -126,8 +131,13 @@ async function main(): Promise<void> {
 
   const { url, textFile } = parseArgs(process.argv);
 
-  if (!process.env.GROQ_API_KEY) {
-    console.error("Error: GROQ_API_KEY is not set. Add it to .env.local or your environment.");
+  // Fail before the fetch, not after: an article download is ~20s of waiting
+  // that cannot produce anything without a vendor behind it. WHICH keys count
+  // is lib/llm's answer, not this script's — a second copy of that list here is
+  // what made an OpenRouter-only environment, which the HTTP route serves
+  // happily, exit 1 at this line.
+  if (configuredLinks().length === 0) {
+    console.error(`Error: ${noProviderMessage()}. Add one to .env.local or your environment.`);
     process.exit(1);
   }
 

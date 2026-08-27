@@ -216,6 +216,80 @@ describe('callLLM', () => {
 })
 
 /**
+ * A rejected key is the one failure that is NOT about the model.
+ *
+ * Found by running the thing rather than reading it: `npm run analyze` against
+ * a real article answered "LLM chain exhausted — all 2 link(s) failed. Last:
+ * LLM HTTP 401 … Invalid API Key". Both Groq links had been asked, each
+ * presenting the identical dead key, and the sentence the operator got reads
+ * like an outage at Groq rather than "your credential is refused".
+ *
+ * The correction has to be narrow. Skipping a whole vendor on 404 or 429 would
+ * turn the chain back into the pin it replaced, so only 401/403 — "not you" —
+ * short-circuits, and only for the vendor that said it.
+ */
+describe('callLLM when a key is rejected', () => {
+  it('does not ask a second model at a vendor that refused the key', async () => {
+    process.env.GROQ_API_KEY = 'gsk_revoked'
+    const sent = spyFetch([fail(401, '{"error":{"code":"invalid_api_key"}}')])
+
+    await expect(callLLM('hi')).rejects.toThrow(/GROQ_API_KEY/)
+
+    // Groq carries more than one model in the chain; all of them share this key.
+    expect(sent).toHaveLength(1)
+  })
+
+  it('still crosses to the next VENDOR, whose key is a different key', async () => {
+    process.env.GROQ_API_KEY = 'gsk_revoked'
+    process.env.OPENROUTER_API_KEY = 'sk-or-live'
+    const sent = spyFetch([fail(401), ok('answer')])
+
+    await expect(callLLM('hi')).resolves.toBe('answer')
+
+    expect(sent).toHaveLength(2)
+    expect(sent[0].auth).toBe('Bearer gsk_revoked')
+    expect(sent[1].auth).toBe('Bearer sk-or-live')
+  })
+
+  it('names the rejected key and the remedy, not the chain length', async () => {
+    process.env.GROQ_API_KEY = 'gsk_revoked'
+    spyFetch([fail(403)])
+
+    const message = await callLLM('hi').then(
+      () => 'resolved, which it must not',
+      (e: Error) => e.message,
+    )
+
+    // The unhelpful version of this sentence — "all N link(s) failed" — sends
+    // the reader after a vendor outage that is not happening.
+    expect(message).toMatch(/rejected by the vendor/)
+    expect(message).toContain('GROQ_API_KEY (groq, HTTP 403)')
+    expect(message).not.toMatch(/chain exhausted/)
+    // …and points at the second meter, which is the actual fix for one dead key.
+    expect(message).toContain('OPENROUTER_API_KEY')
+  })
+
+  it('keeps walking a vendor whose model merely 404s — the retirement case', async () => {
+    process.env.GROQ_API_KEY = 'gsk_live'
+    const sent = spyFetch([fail(404, '{"error":{"code":"model_not_found"}}'), ok('answer')])
+
+    await expect(callLLM('hi')).resolves.toBe('answer')
+
+    // Same vendor, second model. Over-correcting the 401 skip to cover every
+    // 4xx would have stopped at the first link and undone #16 entirely.
+    expect(sent).toHaveLength(2)
+    expect(sent[0].url).toBe(sent[1].url)
+  })
+
+  it('reports the ordinary exhaustion message when nothing was an auth failure', async () => {
+    process.env.GROQ_API_KEY = 'gsk_live'
+    spyFetch([fail(500), fail(500)])
+
+    await expect(callLLM('hi')).rejects.toThrow(/chain exhausted/)
+  })
+})
+
+/**
  * The preflight the CLI runs before spending ~20s fetching an article.
  *
  * `scripts/analyze-cli.ts` used to answer "is a vendor configured?" itself,

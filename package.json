@@ -15,7 +15,7 @@
     "analyze": "tsx scripts/analyze-cli.ts"
   },
   "dependencies": {
-    "ai-kit": "github:maonakamoto/ai-kit#v0.4.0",
+    "ai-kit": "github:catomean/ai-kit#v0.4.0",
     "entities": "^8.0.0",
     "next": "16.2.7",
     "react": "19.2.4",

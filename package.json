@@ -1,6 +1,9 @@
 {
   "name": "truthseeker",
   "version": "0.1.0",
+  "engines": {
+    "node": ">=20"
+  },
   "private": true,
   "description": "First-principles rebuttal generator with full source and author transparency.",
   "scripts": {

@@ -10,106 +10,110 @@
 
 :root {
   /* -- Tier 1: primitive palette (raw values — not used directly by components) */
-  --primitive-ink-950: #0c0e12;   /* near-black, cool slate */
+  --primitive-ink-950: #0c0e12; /* near-black, cool slate */
   --primitive-ink-900: #14171d;
   --primitive-ink-800: #1c212a;
   --primitive-ink-700: #2a313d;
   --primitive-ink-500: #5b6675;
   --primitive-ink-400: #7d899a;
-  --primitive-paper-50: #f7f6f3;  /* warm forensic paper, not pure white */
-  --primitive-paper-0:  #fcfbf9;
-  --primitive-line:     #e4e1da;
+  --primitive-paper-50: #f7f6f3; /* warm forensic paper, not pure white */
+  --primitive-paper-0: #fcfbf9;
+  --primitive-line: #e4e1da;
 
-  --primitive-amber-500: #c8851a;  /* highlighter / evidence-mark — brand */
+  --primitive-amber-500: #c8851a; /* highlighter / evidence-mark — brand */
   --primitive-amber-400: #e0a234;
 
   /* claim-type primitives — the product's signature spectrum */
-  --primitive-teal-500:   #0e8c87;  /* factual  — verifiable, measured */
-  --primitive-teal-400:   #34b3ae;
-  --primitive-violet-500: #7a5cd6;  /* normative — values / "should" */
+  --primitive-teal-500: #0e8c87; /* factual  — verifiable, measured */
+  --primitive-teal-400: #34b3ae;
+  --primitive-violet-500: #7a5cd6; /* normative — values / "should" */
   --primitive-violet-400: #9a82e6;
-  --primitive-rust-500:   #c25a2e;  /* causal   — chains of reasoning */
-  --primitive-rust-400:   #df7a4e;
+  --primitive-rust-500: #c25a2e; /* causal   — chains of reasoning */
+  --primitive-rust-400: #df7a4e;
 
   /* -- Tier 2: semantic tokens (what things MEAN — components use only these) */
-  --color-bg:          var(--primitive-paper-50);
-  --color-surface:     var(--primitive-paper-0);
+  --color-bg: var(--primitive-paper-50);
+  --color-surface: var(--primitive-paper-0);
   --color-surface-raised: #ffffff;
-  --color-border:      var(--primitive-line);
+  --color-border: var(--primitive-line);
   --color-border-strong: #cfcabf;
-  --color-text:        var(--primitive-ink-950);
-  --color-text-muted:  var(--primitive-ink-500);
-  --color-brand:       var(--primitive-amber-500);
-  --color-on-brand:    #ffffff;
+  --color-text: var(--primitive-ink-950);
+  --color-text-muted: var(--primitive-ink-500);
+  --color-brand: var(--primitive-amber-500);
+  --color-on-brand: #ffffff;
 
   /* mono accent — the "evidence log" technical voice */
   --color-mono-accent: var(--primitive-ink-700);
 
   /* claim-type semantic tokens */
-  --color-factual:      var(--primitive-teal-500);
+  --color-factual: var(--primitive-teal-500);
   --color-factual-soft: color-mix(in srgb, var(--primitive-teal-500) 12%, var(--color-surface));
-  --color-normative:      var(--primitive-violet-500);
+  --color-normative: var(--primitive-violet-500);
   --color-normative-soft: color-mix(in srgb, var(--primitive-violet-500) 12%, var(--color-surface));
-  --color-causal:      var(--primitive-rust-500);
+  --color-causal: var(--primitive-rust-500);
   --color-causal-soft: color-mix(in srgb, var(--primitive-rust-500) 12%, var(--color-surface));
 
   /* error / warning — a forensic flag, not generic amber */
-  --color-flag:       #b4451f;
-  --color-flag-soft:  color-mix(in srgb, #b4451f 8%, var(--color-surface));
+  --color-flag: #b4451f;
+  --color-flag-soft: color-mix(in srgb, #b4451f 8%, var(--color-surface));
 
   /* radii / shadows */
-  --radius-card: 4px;   /* sharp corners suit the forensic concept */
+  --radius-card: 4px; /* sharp corners suit the forensic concept */
   --radius-chip: 3px;
   --shadow-card: 0 1px 2px rgb(12 14 18 / 0.04), 0 1px 8px rgb(12 14 18 / 0.04);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg:          var(--primitive-ink-950);
-    --color-surface:     var(--primitive-ink-900);
+    --color-bg: var(--primitive-ink-950);
+    --color-surface: var(--primitive-ink-900);
     --color-surface-raised: var(--primitive-ink-800);
-    --color-border:      var(--primitive-ink-800);
+    --color-border: var(--primitive-ink-800);
     --color-border-strong: var(--primitive-ink-700);
-    --color-text:        var(--primitive-paper-50);
-    --color-text-muted:  var(--primitive-ink-400);
-    --color-brand:       var(--primitive-amber-400);
-    --color-on-brand:    var(--primitive-ink-950);
+    --color-text: var(--primitive-paper-50);
+    --color-text-muted: var(--primitive-ink-400);
+    --color-brand: var(--primitive-amber-400);
+    --color-on-brand: var(--primitive-ink-950);
     --color-mono-accent: var(--primitive-ink-400);
 
-    --color-factual:      var(--primitive-teal-400);
+    --color-factual: var(--primitive-teal-400);
     --color-factual-soft: color-mix(in srgb, var(--primitive-teal-400) 14%, var(--color-surface));
-    --color-normative:      var(--primitive-violet-400);
-    --color-normative-soft: color-mix(in srgb, var(--primitive-violet-400) 14%, var(--color-surface));
-    --color-causal:      var(--primitive-rust-400);
+    --color-normative: var(--primitive-violet-400);
+    --color-normative-soft: color-mix(
+      in srgb,
+      var(--primitive-violet-400) 14%,
+      var(--color-surface)
+    );
+    --color-causal: var(--primitive-rust-400);
     --color-causal-soft: color-mix(in srgb, var(--primitive-rust-400) 14%, var(--color-surface));
 
-    --color-flag:       #e07a52;
-    --color-flag-soft:  color-mix(in srgb, #e07a52 12%, var(--color-surface));
+    --color-flag: #e07a52;
+    --color-flag-soft: color-mix(in srgb, #e07a52 12%, var(--color-surface));
 
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 10px rgb(0 0 0 / 0.25);
   }
 }
 
 @theme inline {
-  --color-bg:            var(--color-bg);
-  --color-surface:       var(--color-surface);
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
   --color-surface-raised: var(--color-surface-raised);
-  --color-border:        var(--color-border);
+  --color-border: var(--color-border);
   --color-border-strong: var(--color-border-strong);
-  --color-text:          var(--color-text);
-  --color-text-muted:    var(--color-text-muted);
-  --color-brand:         var(--color-brand);
-  --color-on-brand:      var(--color-on-brand);
-  --color-mono-accent:   var(--color-mono-accent);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-brand: var(--color-brand);
+  --color-on-brand: var(--color-on-brand);
+  --color-mono-accent: var(--color-mono-accent);
 
-  --color-factual:      var(--color-factual);
+  --color-factual: var(--color-factual);
   --color-factual-soft: var(--color-factual-soft);
-  --color-normative:      var(--color-normative);
+  --color-normative: var(--color-normative);
   --color-normative-soft: var(--color-normative-soft);
-  --color-causal:      var(--color-causal);
+  --color-causal: var(--color-causal);
   --color-causal-soft: var(--color-causal-soft);
 
-  --color-flag:      var(--color-flag);
+  --color-flag: var(--color-flag);
   --color-flag-soft: var(--color-flag-soft);
 
   --radius-card: var(--radius-card);

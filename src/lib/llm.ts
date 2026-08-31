@@ -79,13 +79,7 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
     throw new Error(noProviderMessage());
   }
 
-  const {
-    maxTokens = 4000,
-    temperature = 0.2,
-    timeoutMs = 35_000,
-    systemPrompt,
-    jsonMode,
-  } = opts;
+  const { maxTokens = 4000, temperature = 0.2, timeoutMs = 35_000, systemPrompt, jsonMode } = opts;
 
   const messages: Array<{ role: string; content: string }> = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
@@ -171,7 +165,9 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
   // what to do about it.
   const configuredVendors = new Set(links.map((l) => l.provider.keyEnv));
   if (rejected.size > 0 && rejected.size === configuredVendors.size) {
-    throw new Error(`${rejectedKeyMessage(rejected)} ${secondVendorHint(configuredVendors)}`.trim());
+    throw new Error(
+      `${rejectedKeyMessage(rejected)} ${secondVendorHint(configuredVendors)}`.trim(),
+    );
   }
 
   // Otherwise: name the whole chain, not just the last link. "gpt-oss-120b

@@ -64,9 +64,8 @@ export default function Home() {
           truth<span className="text-brand">/</span>seeker
         </h1>
         <p className="mt-3 max-w-xl text-text-muted">
-          Paste an article URL. Get a forensic breakdown — every claim tagged,
-          its sources named, its biases surfaced, and a first-principles critique
-          you can argue with.
+          Paste an article URL. Get a forensic breakdown — every claim tagged, its sources named,
+          its biases surfaced, and a first-principles critique you can argue with.
         </p>
       </header>
 
@@ -116,7 +115,9 @@ function ClaimLegend() {
           <div key={t} className="bg-surface px-4 py-3">
             <dt className="flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${c.dot}`} />
-              <span className={`font-mono text-xs font-semibold uppercase tracking-wider ${c.text}`}>
+              <span
+                className={`font-mono text-xs font-semibold uppercase tracking-wider ${c.text}`}
+              >
                 {c.label}
               </span>
             </dt>
@@ -136,9 +137,9 @@ function EmptyState() {
         How it reads an article
       </p>
       <p className="max-w-xl text-sm text-text-muted">
-        truthseeker doesn&apos;t tell you whether an article is true. It exposes
-        its <span className="text-text">structure</span> so you can judge it
-        yourself. Every load-bearing claim is sorted into one of three kinds:
+        truthseeker doesn&apos;t tell you whether an article is true. It exposes its{" "}
+        <span className="text-text">structure</span> so you can judge it yourself. Every
+        load-bearing claim is sorted into one of three kinds:
       </p>
       <ClaimLegend />
       <ol className="space-y-2 font-mono text-xs text-text-muted">
@@ -166,9 +167,7 @@ function LoadingState() {
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand" />
         </span>
-        <p className="font-mono text-xs uppercase tracking-[0.15em] text-text">
-          Examining
-        </p>
+        <p className="font-mono text-xs uppercase tracking-[0.15em] text-text">Examining</p>
       </div>
       <ul className="space-y-1.5 font-mono text-xs text-text-muted">
         <li>→ fetching and cleaning article body</li>
@@ -262,9 +261,7 @@ function Result({ result }: { result: AnalysisResult }) {
               >
                 <p className="text-text">{c.claim}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider">
-                  <span className={`rounded-chip px-1.5 py-0.5 ${style.chip}`}>
-                    {style.label}
-                  </span>
+                  <span className={`rounded-chip px-1.5 py-0.5 ${style.chip}`}>{style.label}</span>
                   <span className="text-text-muted">{c.evidence_quality}</span>
                   <span className="text-text-muted">
                     {c.supported_in_article ? "· supported in article" : "· unsupported"}

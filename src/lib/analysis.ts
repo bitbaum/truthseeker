@@ -47,10 +47,14 @@ export async function analyzeUrl(url: string): Promise<AnalysisResult> {
   const fetched = await fetchArticle(url);
 
   if (fetched.status >= 400) {
-    throw new Error(`Could not fetch article (HTTP ${fetched.status}). Some sites block bots — try downloading the article and pasting its text instead.`);
+    throw new Error(
+      `Could not fetch article (HTTP ${fetched.status}). Some sites block bots — try downloading the article and pasting its text instead.`,
+    );
   }
   if (fetched.textLength < 200) {
-    throw new Error(`Article body was too short (${fetched.textLength} chars after cleaning). The page may require JavaScript or paywall login.`);
+    throw new Error(
+      `Article body was too short (${fetched.textLength} chars after cleaning). The page may require JavaScript or paywall login.`,
+    );
   }
 
   return analyzeText({
@@ -76,7 +80,9 @@ export async function analyzeText(opts: {
 }): Promise<AnalysisResult> {
   const start = Date.now();
   if (!opts.text || opts.text.trim().length < 200) {
-    throw new Error(`Article text was too short (${opts.text?.length ?? 0} chars). Need at least 200 chars of body to analyze meaningfully.`);
+    throw new Error(
+      `Article text was too short (${opts.text?.length ?? 0} chars). Need at least 200 chars of body to analyze meaningfully.`,
+    );
   }
 
   // Cap the article text we send. The model's context window is large, but
@@ -87,9 +93,7 @@ export async function analyzeText(opts: {
   // for article text.
   const MAX_CHARS = 20_000;
   const truncated = opts.text.length > MAX_CHARS;
-  const articleText = truncated
-    ? opts.text.slice(0, MAX_CHARS) + "\n[...truncated]"
-    : opts.text;
+  const articleText = truncated ? opts.text.slice(0, MAX_CHARS) + "\n[...truncated]" : opts.text;
 
   const completion = await callLLM(
     buildUserPrompt({
@@ -169,7 +173,8 @@ function validateAnalysisShape(v: unknown): Analysis {
     if (typeof c !== "object" || c === null) return fail("a core_claims entry is not an object");
     const claim = c as Record<string, unknown>;
     if (typeof claim.claim !== "string") return fail("a core_claims entry is missing 'claim'");
-    if (!CLAIM_TYPES.has(claim.type as string)) return fail(`a core_claims entry has invalid type '${claim.type}'`);
+    if (!CLAIM_TYPES.has(claim.type as string))
+      return fail(`a core_claims entry has invalid type '${claim.type}'`);
     if (typeof claim.supported_in_article !== "boolean")
       return fail("a core_claims entry's supported_in_article is not a boolean");
     if (!EVIDENCE_QUALITIES.has(claim.evidence_quality as string))

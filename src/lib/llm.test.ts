@@ -21,7 +21,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { freeChain } from "ai-kit";
+import { freeChain } from "@bitbaum/ai-kit";
 import { callLLM, configuredLinks, noProviderMessage } from "./llm";
 
 /** A chat-completions response carrying `content`. */

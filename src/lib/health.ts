@@ -7,7 +7,7 @@
  * kivvi, botsmann, hirnli, aoz-housing).
  */
 
-import { createHealthTracker } from "ai-kit";
+import { createHealthTracker } from "@bitbaum/ai-kit";
 
 const tracker = createHealthTracker({ downAfter: 3 });
 

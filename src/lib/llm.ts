@@ -20,7 +20,7 @@
 // alongside GROQ_API_KEY and this app gains a second meter; with one key it
 // still gets the model-level fallback, which is what rot actually looks like.
 
-import { freeChain, usableChain, type Env, type Link } from "ai-kit";
+import { freeChain, usableChain, type Env, type Link } from "@bitbaum/ai-kit";
 import { recordLLMFailure, recordLLMSuccess } from "./health";
 
 /** Prefix for this app's per-vendor model overrides (TRUTHSEEKER_GROQ_MODELS…). */

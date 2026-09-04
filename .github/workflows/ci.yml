@@ -12,17 +12,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # No version input: pnpm/action-setup reads packageManager from package.json.
+      - uses: pnpm/action-setup@v6
+
+      # The action's default store nests inside its own bin dir; a git-dep
+      # prepare build then dies with TS2742. Pin the store somewhere sane.
+      - name: Set pnpm store dir
+        run: pnpm config set store-dir ~/.pnpm-store --global
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
-          cache: npm
+          node-version: 24
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Verify (lint + typecheck)
-        run: npm run verify
+        run: pnpm run verify
 
       - name: Build
-        run: npm run build
+        run: pnpm run build

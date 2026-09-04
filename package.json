@@ -2,8 +2,9 @@
   "name": "truthseeker",
   "version": "0.1.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
+  "packageManager": "pnpm@11.25.0",
   "private": true,
   "description": "First-principles rebuttal generator with full source and author transparency.",
   "scripts": {
@@ -14,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
     "analyze": "tsx scripts/analyze-cli.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

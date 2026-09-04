@@ -23,9 +23,9 @@ Planned for v0.2+:
 ## Run
 
 ```bash
-npm install
+pnpm install
 echo "GROQ_API_KEY=gsk_..." > .env.local   # or OPENROUTER_API_KEY — either vendor alone is enough
-npm run dev
+pnpm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). Paste a URL. Wait ~5-10 seconds.
@@ -33,7 +33,7 @@ Open [http://localhost:3000](http://localhost:3000). Paste a URL. Wait ~5-10 sec
 ## CLI (no UI needed)
 
 ```bash
-npm run analyze -- "https://www.republik.ch/2026/06/05/europa-soll-aufhoeren-das-silicon-valley-zu-kopieren"
+pnpm run analyze "https://www.republik.ch/2026/06/05/europa-soll-aufhoeren-das-silicon-valley-zu-kopieren"
 ```
 
 Writes the result as `analyses/<slug>.md` so you can review and commit it alongside the code.
@@ -42,7 +42,7 @@ Writes the result as `analyses/<slug>.md` so you can review and commit it alongs
 
 - Next.js 16 (App Router) + React 19 + TypeScript
 - Tailwind v4
-- A free-model **chain** from [`ai-kit`](https://github.com/bitbaum/ai-kit) for the analysis, walked link by link — never one pinned model. A pin is a scheduled outage: `llama-3.3-70b-versatile` was named here until Groq retired the whole llama-3.x family and every analysis started answering 404 with a perfectly valid key. Set both `GROQ_API_KEY` and `OPENROUTER_API_KEY` and the walk crosses vendors, which is the half that survives a spent daily budget; one key still buys the model-level fallback. See `src/lib/llm.ts`.
+- A free-model **chain** from [`@bitbaum/ai-kit`](https://github.com/bitbaum/ai-kit) (installed from npm) for the analysis, walked link by link — never one pinned model. A pin is a scheduled outage: `llama-3.3-70b-versatile` was named here until Groq retired the whole llama-3.x family and every analysis started answering 404 with a perfectly valid key. Set both `GROQ_API_KEY` and `OPENROUTER_API_KEY` and the walk crosses vendors, which is the half that survives a spent daily budget; one key still buys the model-level fallback. See `src/lib/llm.ts`.
 
 ## Architecture
 
@@ -52,12 +52,12 @@ src/
 │   ├── page.tsx               URL input + result render
 │   ├── api/analyze/route.ts   POST: { url } → structured analysis JSON
 │   └── globals.css
-├── lib/
-│   ├── article-fetch.ts       HTTP + HTML → plain-text article body
-│   ├── llm.ts                 Groq client (single source of truth for model + URL)
-│   └── prompts.ts             The first-principles analysis system prompt
-└── scripts/
-    └── analyze-cli.ts         No-server CLI variant for batch / dogfood
+└── lib/
+    ├── article-fetch.ts       HTTP + HTML → plain-text article body
+    ├── llm.ts                 LLM caller — walks the cross-vendor free-model chain from @bitbaum/ai-kit
+    └── prompts.ts             The first-principles analysis system prompt
+scripts/
+└── analyze-cli.ts             No-server CLI variant for batch / dogfood
 ```
 
 The LLM call is the only paid edge. Everything else is a pure function.

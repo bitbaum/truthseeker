@@ -23,7 +23,7 @@
   "dependencies": {
     "@bitbaum/ai-kit": "^0.6.2",
     "entities": "^8.0.0",
-    "next": "16.3.3",
+    "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -33,10 +33,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^10",
-    "eslint-config-next": "^16.3.3",
+    "eslint-config-next": "^16.3.4",
     "prettier": "3.9.6",
     "tailwindcss": "^4",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   }

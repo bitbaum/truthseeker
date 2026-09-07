@@ -24,24 +24,29 @@ import path from "node:path";
 import { freeChain } from "@bitbaum/ai-kit";
 import { callLLM, configuredLinks, noProviderMessage } from "./llm";
 
-/** A chat-completions response carrying `content`. */
+/**
+ * Real `Response` objects, not hand-built look-alikes.
+ *
+ * These used to be `{ ok, status, json, text }` literals, and the `ok()` one
+ * carried `text: async () => ""` — harmless while the client read `json()`
+ * first, and fatal the moment it read the text (which it must, to keep the
+ * vendor's body in the error and tell a spent daily budget from a busy
+ * minute). Every response then looked like a 200 with an unparseable body.
+ *
+ * A fake that diverges from the contract it imitates is how a suite stays
+ * green over a client that cannot work — and here it would have gone the other
+ * way, failing a client that works.
+ */
 function ok(content: string) {
-  return {
-    ok: true,
+  return new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
     status: 200,
-    json: async () => ({ choices: [{ message: { content } }] }),
-    text: async () => "",
-  } as unknown as Response;
+    headers: { "content-type": "application/json" },
+  });
 }
 
 /** A vendor refusal — the shape a retired model id actually returns. */
 function fail(status: number, body = '{"error":{"code":"model_not_found"}}') {
-  return {
-    ok: false,
-    status,
-    json: async () => ({}),
-    text: async () => body,
-  } as unknown as Response;
+  return new Response(body, { status });
 }
 
 /** Every request the fake fetch received, in order. */
@@ -56,7 +61,9 @@ function spyFetch(responses: Array<Response | Error>) {
     sent.push({
       url: String(url),
       model: body.model ?? "",
-      auth: headers.Authorization ?? "",
+      // Case-insensitive on purpose: HTTP header names are, and ai-kit
+      // spells this one lowercase.
+      auth: headers.Authorization ?? headers.authorization ?? "",
     });
     const next = responses[i++];
     if (next instanceof Error) throw next;
@@ -167,7 +174,17 @@ describe("callLLM", () => {
     // "gpt-oss-120b failed" sends the reader after one model. "all N links
     // failed" says the shape of the problem is the key, the network or the
     // budget — a different investigation entirely.
-    await expect(callLLM("hi")).rejects.toThrow(/chain exhausted/i);
+    //
+    // The wording is ai-kit's now, and it is strictly more useful: it names
+    // EVERY link's own failure rather than only the last one, so two vendors
+    // failing for two different reasons no longer look like one.
+    const error = await callLLM("hi").then(
+      () => null,
+      (e) => e as Error,
+    );
+    expect(error?.message).toMatch(/All 2 link\(s\) failed/i);
+    expect(error?.message).toMatch(/gpt-oss-120b/);
+    expect(error?.message).toMatch(/gpt-oss-20b/);
   });
 
   it("never sends a model id this repo hardcoded", async () => {
@@ -285,7 +302,10 @@ describe("callLLM when a key is rejected", () => {
     process.env.GROQ_API_KEY = "gsk_live";
     spyFetch([fail(500), fail(500)]);
 
-    await expect(callLLM("hi")).rejects.toThrow(/chain exhausted/);
+    // NOT the rejected-key message: a 500 is the vendor being unwell, not a
+    // credential being refused, and conflating them sends the reader to rotate
+    // a key that is fine.
+    await expect(callLLM("hi")).rejects.toThrow(/All 2 link\(s\) failed/i);
   });
 });
 

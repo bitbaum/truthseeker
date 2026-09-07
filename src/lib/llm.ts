@@ -20,7 +20,16 @@
 // alongside GROQ_API_KEY and this app gains a second meter; with one key it
 // still gets the model-level fallback, which is what rot actually looks like.
 
-import { freeChain, usableChain, type Env, type Link } from "@bitbaum/ai-kit";
+import {
+  complete,
+  freeChain,
+  usableChain,
+  ChainExhaustedError,
+  LinkFailure,
+  type ChatMessage,
+  type Env,
+  type Link,
+} from "@bitbaum/ai-kit";
 import { recordLLMFailure, recordLLMSuccess } from "./health";
 
 /** Prefix for this app's per-vendor model overrides (TRUTHSEEKER_GROQ_MODELS…). */
@@ -84,106 +93,68 @@ export async function callLLM(prompt: string, opts: LLMOptions = {}): Promise<st
 
   const { maxTokens = 4000, temperature = 0.2, timeoutMs = 35_000, systemPrompt, jsonMode } = opts;
 
-  const messages: Array<{ role: string; content: string }> = [];
+  const messages: ChatMessage[] = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  // The timeout is PER LINK, not for the walk as a whole. Sharing one deadline
-  // across the chain would let a first vendor that hangs consume the budget of
-  // every fallback behind it, which is the case the fallback exists for.
-  let lastError: Error | null = null;
-
-  // Vendors that answered "this key is not valid". Every remaining link at such
-  // a vendor would send the SAME key and get the same answer, so the walk skips
-  // them instead of spending a request to be told twice.
+  // Vendors that answered "this key is not valid". `complete()` already skips
+  // the rest of a vendor's links on 401/403 — a behaviour this file taught it
+  // (ai-kit 0.13.0) — but WHICH vendors refused is app knowledge worth
+  // reporting, so it is collected here on the way past.
   const rejected = new Map<string, { providerId: string; status: number }>();
 
-  for (const link of links) {
-    const key = process.env[link.provider.keyEnv];
-    if (!key) continue;
-    if (rejected.has(link.provider.keyEnv)) continue;
-
-    try {
-      const res = await fetch(`${link.provider.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model: link.model,
-          messages,
-          max_tokens: maxTokens,
-          temperature,
-          ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-        }),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        lastError = new Error(
-          `LLM HTTP ${res.status} at ${link.provider.id}/${link.model}: ${body.slice(0, 200)}`,
-        );
-        // A rejected key is the one verdict that is about the VENDOR rather
-        // than the model: 401/403 says "not you", and every further link at
-        // this vendor presents the identical key. Note it and let the loop skip
-        // them — while still crossing to the next vendor, which is a different
-        // key and the whole reason the chain spans vendors.
-        //
-        // Everything else falls through link by link. A 404 is a retired id, a
-        // 429 a busy or spent model, a 5xx a vendor being unwell — all three
-        // are answered by asking a DIFFERENT model, which is what the next link
-        // is. Widening this skip beyond auth would quietly turn the chain back
-        // into the pin it replaced.
-        if (AUTH_REJECTED.has(res.status)) {
-          rejected.set(link.provider.keyEnv, {
-            providerId: link.provider.id,
-            status: res.status,
-          });
+  try {
+    const text = await complete({
+      chain: links,
+      messages,
+      maxTokens,
+      temperature,
+      // PER LINK, not for the walk as a whole. Sharing one deadline across the
+      // chain would let a first vendor that hangs consume the budget of every
+      // fallback behind it — the case the fallback exists for.
+      timeoutMs,
+      ...(jsonMode ? { extraBody: { response_format: { type: "json_object" } } } : {}),
+      onLinkFailure: (link, error) => {
+        const status = error instanceof LinkFailure ? error.status : undefined;
+        if (status !== undefined && AUTH_REJECTED.has(status)) {
+          rejected.set(link.provider.keyEnv, { providerId: link.provider.id, status });
         }
-        continue;
-      }
+      },
+    });
 
-      const data = (await res.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const content = (data?.choices?.[0]?.message?.content ?? "").trim();
-      // A 200 carrying empty content is a failure that reads like success —
-      // one free model was observed doing exactly this. Treat it as a miss and
-      // let the next link answer, rather than returning "" to the caller.
-      if (!content) {
-        lastError = new Error(`LLM returned empty content at ${link.provider.id}/${link.model}`);
-        continue;
-      }
-      recordLLMSuccess();
-      return content;
-    } catch (err) {
-      // Timeout or transport failure. Same reasoning: the next link is a
-      // different model and possibly a different vendor.
-      lastError = err instanceof Error ? err : new Error(String(err));
+    recordLLMSuccess();
+    return text.text;
+  } catch (err) {
+    // When every vendor rejected its key, the walk is not the story — the key
+    // is. "LLM chain exhausted … Last: HTTP 401" is true and useless: it reads
+    // as an outage at someone else's shop, and the reader goes looking for one.
+    // The fact worth surfacing is that a credential this app holds was refused,
+    // and what to do about it.
+    const configuredVendors = new Set(links.map((l) => l.provider.keyEnv));
+    if (rejected.size > 0 && rejected.size === configuredVendors.size) {
+      const error = new Error(
+        `${rejectedKeyMessage(rejected)} ${secondVendorHint(configuredVendors)}`.trim(),
+      );
+      recordLLMFailure(error);
+      throw error;
     }
-  }
 
-  // When every vendor rejected its key, the walk is not the story — the key is.
-  // "LLM chain exhausted … Last: HTTP 401" is true and useless: it reads as an
-  // outage at someone else's shop, and the reader goes looking for one. The
-  // fact worth surfacing is that a credential this app holds was refused, and
-  // what to do about it.
-  const configuredVendors = new Set(links.map((l) => l.provider.keyEnv));
-  if (rejected.size > 0 && rejected.size === configuredVendors.size) {
-    const error = new Error(
-      `${rejectedKeyMessage(rejected)} ${secondVendorHint(configuredVendors)}`.trim(),
-    );
+    // Otherwise: name the whole chain, not just the last link. "gpt-oss-120b
+    // failed" sends the reader after one model; "all 2 links failed" says the
+    // shape of the problem is the key, the network or the budget.
+    //
+    // `complete` already builds exactly that message, listing every link's own
+    // failure rather than only the final one, so it is rethrown as-is instead
+    // of being re-summarised into something less specific.
+    const error =
+      err instanceof ChainExhaustedError
+        ? err
+        : err instanceof Error
+          ? err
+          : new Error(String(err));
     recordLLMFailure(error);
     throw error;
   }
-
-  // Otherwise: name the whole chain, not just the last link. "gpt-oss-120b
-  // failed" sends the reader after one model; "all 2 links failed" says the
-  // shape of the problem is the key, the network or the budget.
-  const exhausted = new Error(
-    `LLM chain exhausted — all ${links.length} link(s) failed. Last: ${lastError?.message ?? "unknown"}`,
-  );
-  recordLLMFailure(exhausted);
-  throw exhausted;
 }
 
 /** HTTP statuses that mean "this key", not "this model". */

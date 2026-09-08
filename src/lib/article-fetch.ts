@@ -7,6 +7,8 @@
 
 import { decodeHTML } from "entities";
 
+import { assertPublicUrl, BlockedUrlError } from "./public-url";
+
 export interface FetchedArticle {
   url: string;
   /** Status code returned by the fetch. */
@@ -26,9 +28,50 @@ export interface FetchedArticle {
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
+/**
+ * How many redirect hops to follow before giving up.
+ *
+ * `fetch`'s own "follow" mode allows 20 and validates none of them. This
+ * follows them by hand precisely so each destination can be re-checked, and 5
+ * is well past what a real publication uses (http→https→www→canonical) while
+ * ending an intentional redirect loop quickly.
+ */
+const MAX_REDIRECTS = 5;
+
 export async function fetchArticle(url: string): Promise<FetchedArticle> {
-  const res = await fetch(url, {
-    redirect: "follow",
+  // The caller's URL is a stranger's input and this runs on the server, so
+  // every hop is checked before it is fetched — see public-url.ts for why the
+  // hostname alone cannot answer the question.
+  let current = url;
+  let res: Response;
+
+  for (let hop = 0; ; hop++) {
+    await assertPublicUrl(current);
+    res = await fetchOnce(current);
+
+    if (![301, 302, 303, 307, 308].includes(res.status)) break;
+
+    const location = res.headers.get("location");
+    if (!location) break; // a redirect status with nowhere to go: treat as final
+
+    if (hop >= MAX_REDIRECTS) {
+      throw new BlockedUrlError(`Too many redirects (more than ${MAX_REDIRECTS}) from ${url}`);
+    }
+    // Resolved against the CURRENT url, because Location is often relative.
+    current = new URL(location, current).toString();
+  }
+
+  // The FINAL url, not the one the caller sent: after a redirect chain the
+  // article is attributed to where it actually came from.
+  return parseArticle(current, res);
+}
+
+async function fetchOnce(url: string): Promise<Response> {
+  return fetch(url, {
+    // Manual, not "follow": following automatically would skip the check on
+    // every hop after the first, and the later hops are the dangerous ones —
+    // a public URL is free to answer 302 to 169.254.169.254.
+    redirect: "manual",
     headers: {
       "User-Agent": UA,
       Accept:
@@ -49,7 +92,9 @@ export async function fetchArticle(url: string): Promise<FetchedArticle> {
     // Articles can be slow on first-byte; the LLM call has its own timeout.
     signal: AbortSignal.timeout(20_000),
   });
+}
 
+async function parseArticle(url: string, res: Response): Promise<FetchedArticle> {
   const contentType = res.headers.get("content-type");
   // Reject non-HTML payloads before spending an LLM call on them. Without
   // this, a PDF or image URL silently comes back as "textLength > 200"

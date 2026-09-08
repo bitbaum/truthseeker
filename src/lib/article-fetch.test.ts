@@ -11,6 +11,15 @@
  * tests are the gate that keeps it gone.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// fetchArticle now resolves every hop's hostname before fetching it (SSRF
+// guard — see public-url.ts). Stub the resolver so this suite stays hermetic:
+// a unit test that needs working DNS fails on a plane, and the thing under
+// test here is entity decoding, not name resolution.
+vi.mock("node:dns/promises", () => ({
+  lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+}));
+
 import { fetchArticle } from "./article-fetch";
 
 /** Serve one canned HTML response to the next fetchArticle call. */

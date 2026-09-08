@@ -12,6 +12,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeUrl, analyzeText } from "@/lib/analysis";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
+import { BlockedUrlError } from "@/lib/public-url";
 
 // Article fetch and the LLM call run sequentially, each behind its own
 // AbortSignal.timeout — 20s (article-fetch.ts) + 35s (llm.ts) = 55s worst
@@ -20,7 +22,27 @@ import { analyzeUrl, analyzeText } from "@/lib/analysis";
 // instead of failing through our own clean, catchable timeout errors.
 export const maxDuration = 60;
 
+/**
+ * This route is unauthenticated by design — anyone can paste a link — and each
+ * call costs an article fetch plus a real LLM completion. The limit is what
+ * stands between that and a drained daily budget, which would take the feature
+ * down for everyone while looking like a vendor outage.
+ *
+ * Ten an hour is generous for a person reading articles and useless for a
+ * script.
+ */
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60 * 60 * 1000;
+
 export async function POST(req: NextRequest) {
+  const limit = checkRateLimit(clientKey(req.headers), RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { ok: false, error: `Rate limit reached. Try again in ${limit.retryAfter}s.` },
+      { status: 429, headers: { "retry-after": String(limit.retryAfter) } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -54,6 +76,12 @@ export async function POST(req: NextRequest) {
       : await analyzeUrl(parsed.toString());
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
+    // A refused target is the caller's mistake, not an upstream failure. 502
+    // would send the reader looking for an outage that is not happening, and
+    // would hide that we declined on purpose.
+    if (e instanceof BlockedUrlError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: 400 });
+    }
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ ok: false, error: msg }, { status: 502 });
   }

@@ -53,18 +53,28 @@ describe("checkRateLimit", () => {
     expect(refused.retryAfter).toBeLessThanOrEqual(60);
   });
 
-  it("keeps counting while refusing, so a hammering caller stays out", () => {
+  it("keeps a hammering caller out for the rest of the window", () => {
+    vi.useFakeTimers();
     checkRateLimit("a", 1, 60_000);
     for (let i = 0; i < 5; i++) checkRateLimit("a", 1, 60_000);
     expect(checkRateLimit("a", 1, 60_000).ok).toBe(false);
+
+    // Refused calls count nothing, so hammering does not extend the punishment
+    // past the window: a legitimate caller behind the same NAT gets back in on
+    // schedule instead of staying locked out for as long as somebody else keeps
+    // trying.
+    vi.advanceTimersByTime(60_001);
+    expect(checkRateLimit("a", 1, 60_000).ok).toBe(true);
   });
 });
 
 describe("clientKey", () => {
-  it("takes the FIRST x-forwarded-for entry — the original client", () => {
-    // Later entries are proxies. Keying on the last one would bucket everyone
-    // behind Caddy together and rate-limit the whole internet as one caller.
-    const headers = new Headers({ "x-forwarded-for": "203.0.113.7, 10.0.0.1, 10.0.0.2" });
+  it("takes the LAST x-forwarded-for entry — the hop Caddy itself wrote", () => {
+    // A proxy APPENDS, so every entry left of the last is whatever the caller
+    // chose to send. Keying on the first one let anyone send a random value per
+    // request and land in a fresh bucket each time, which is a limiter that
+    // cannot be tripped.
+    const headers = new Headers({ "x-forwarded-for": "10.0.0.1, 10.0.0.2, 203.0.113.7" });
     expect(clientKey(headers)).toBe("203.0.113.7");
   });
 

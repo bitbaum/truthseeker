@@ -1,34 +1,24 @@
-// A small fixed-window limiter for the one public, unauthenticated route.
+// Rate limiting for the one public, unauthenticated route — owned by
+// `limitkit`, the fleet's shared limiter (see fleet/SHARED.md).
 //
 // `POST /api/analyze` costs a real article fetch and a real LLM completion on
 // every call, from anybody, with no sign-in. Without a limit the failure mode
 // is not an outage — it is a bill, and a drained free-tier budget that takes
 // the feature down for everyone else while looking like a vendor problem.
 //
-// Deliberately in-process and dependency-free. This app runs as a single
-// service, so module state is shared by every request, and a shared store
-// (Redis) would be a new piece of infrastructure guarding one endpoint. If it
+// This file is a SHIM and should stay one: the route's signature and result
+// shape live here, the window arithmetic and the client-IP parsing live in the
+// package. HOW MANY calls an hour the route allows is app semantics and stays
+// at the call site.
+//
+// Still in-process: limitkit's default store keeps counts in memory, bounded by
+// eviction rather than the timer-free lazy sweep this file used to do. This app
+// runs as a single service, so module state is shared by every request; if it
 // is ever scaled horizontally the limit becomes per-instance, which is worth
-// knowing but still far better than none.
+// knowing but still far better than none (implement limitkit's two-method
+// `Store` over something shared at that point, and change nothing else).
 
-interface Window {
-  count: number;
-  /** Epoch ms at which this window ends. */
-  resetAt: number;
-}
-
-const windows = new Map<string, Window>();
-
-/**
- * Keys are evicted lazily, on the next call after they expire. A busy endpoint
- * cleans itself; a quiet one holds a handful of dead entries, which is cheaper
- * than a timer that keeps the process awake.
- */
-function sweep(now: number): void {
-  for (const [key, window] of windows) {
-    if (window.resetAt <= now) windows.delete(key);
-  }
-}
+import { slidingWindow, clientIp, MemoryStore, type Limiter } from "limitkit";
 
 export interface RateLimitResult {
   ok: boolean;
@@ -38,42 +28,42 @@ export interface RateLimitResult {
   retryAfter: number;
 }
 
-export function checkRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
-  const now = Date.now();
-  if (windows.size > 500) sweep(now);
+let store = new MemoryStore();
 
-  const existing = windows.get(key);
-  if (!existing || existing.resetAt <= now) {
-    windows.set(key, { count: 1, resetAt: now + windowMs });
-    return { ok: true, remaining: limit - 1, retryAfter: 0 };
-  }
+/** One limiter per distinct rule; there is exactly one rule today. */
+const limiters = new Map<string, Limiter>();
 
-  existing.count += 1;
-  const retryAfter = Math.max(1, Math.ceil((existing.resetAt - now) / 1000));
-  if (existing.count > limit) {
-    return { ok: false, remaining: 0, retryAfter };
+function limiterFor(limit: number, windowMs: number): Limiter {
+  const ruleKey = `${limit}/${windowMs}`;
+  let limiter = limiters.get(ruleKey);
+  if (!limiter) {
+    limiter = slidingWindow({ limit, windowMs }, store);
+    limiters.set(ruleKey, limiter);
   }
-  return { ok: true, remaining: limit - existing.count, retryAfter };
+  return limiter;
 }
 
-/** Test seam — the window map is module state, so it outlives a single test. */
+export function checkRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
+  const result = limiterFor(limit, windowMs).check(key);
+  return { ok: result.allowed, remaining: result.remaining, retryAfter: result.retryAfterSeconds };
+}
+
+/** Test seam — the counts are module state, so they outlive a single test. */
 export function resetRateLimits(): void {
-  windows.clear();
+  store = new MemoryStore();
+  limiters.clear();
 }
 
 /**
  * Who is calling, as far as we can tell.
  *
- * Behind Caddy the socket address is always the proxy, so the client address
- * arrives in `x-forwarded-for`. The FIRST entry is the original client; later
- * ones are proxies. A caller can forge the header, so this is a courtesy limit
- * on honest traffic and a speed bump on the rest — not an access control.
+ * Behind Caddy the socket address is always the proxy, so the caller's address
+ * arrives in `x-forwarded-for` — and because a proxy APPENDS, the entry Caddy
+ * wrote is the LAST one. That is the only entry a caller cannot forge, which is
+ * the whole point: keying on the first entry (what this used to do) let anyone
+ * send a random `x-forwarded-for` per request and land in a fresh bucket every
+ * time, so no bucket ever filled.
  */
 export function clientKey(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return headers.get("x-real-ip")?.trim() || "unknown";
+  return clientIp(headers);
 }

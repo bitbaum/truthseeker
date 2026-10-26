@@ -96,7 +96,7 @@ describe("callLLM", () => {
     spyFetch([]);
     // The old message named GROQ_API_KEY alone, which quietly became wrong the
     // moment a second vendor could serve this app.
-    await expect(callLLM("hi")).rejects.toThrow(/GROQ_API_KEY or OPENROUTER_API_KEY/);
+    await expect(callLLM("hi")).rejects.toThrow(/GROQ_API_KEY.*OPENROUTER_API_KEY/);
   });
 
   it("asks a vendor whose key is absent nothing at all", async () => {
@@ -169,7 +169,8 @@ describe("callLLM", () => {
 
   it("names the whole chain when every link fails", async () => {
     process.env.GROQ_API_KEY = "gsk_test";
-    spyFetch([fail(500), fail(500), fail(500), fail(500)]);
+    const configuredCount = configuredLinks().length;
+    const sent = spyFetch(Array.from({ length: configuredCount }, () => fail(500)));
 
     // "gpt-oss-120b failed" sends the reader after one model. "all N links
     // failed" says the shape of the problem is the key, the network or the
@@ -182,9 +183,10 @@ describe("callLLM", () => {
       () => null,
       (e) => e as Error,
     );
-    expect(error?.message).toMatch(/All 2 link\(s\) failed/i);
-    expect(error?.message).toMatch(/gpt-oss-120b/);
-    expect(error?.message).toMatch(/gpt-oss-20b/);
+    expect(error?.message).toMatch(new RegExp(`All ${configuredCount} link\\(s\\) failed`, "i"));
+    expect(sent).toHaveLength(configuredCount);
+    expect(error?.message).toContain(sent[0]!.model);
+    expect(error?.message).toContain(sent.at(-1)!.model);
   });
 
   it("never sends a model id this repo hardcoded", async () => {
@@ -300,12 +302,15 @@ describe("callLLM when a key is rejected", () => {
 
   it("reports the ordinary exhaustion message when nothing was an auth failure", async () => {
     process.env.GROQ_API_KEY = "gsk_live";
-    spyFetch([fail(500), fail(500)]);
+    const configuredCount = configuredLinks().length;
+    spyFetch(Array.from({ length: configuredCount }, () => fail(500)));
 
     // NOT the rejected-key message: a 500 is the vendor being unwell, not a
     // credential being refused, and conflating them sends the reader to rotate
     // a key that is fine.
-    await expect(callLLM("hi")).rejects.toThrow(/All 2 link\(s\) failed/i);
+    await expect(callLLM("hi")).rejects.toThrow(
+      new RegExp(`All ${configuredCount} link\\(s\\) failed`, "i"),
+    );
   });
 });
 

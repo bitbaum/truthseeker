@@ -1,0 +1,26 @@
+# A real Chromium against this site's production build, at 320, 390 and
+# 1280px: every path answers, and nothing is fetched from Google Fonts.
+# Screenshots are the `browser-smoke` artifact. The package rollout gate
+# requires this workflow of a site that depends on a shared package
+# (bitbaum/fleet docs/package-rollouts.md, "Content sites").
+name: Browser smoke
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: browser-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    uses: bitbaum/fleet/.github/workflows/static-browser-smoke.yml@main
+    with:
+      paths: /

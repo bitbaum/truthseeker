@@ -1,22 +1,11 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-
 // Space Grotesk — a sharp grotesk for the wordmark and headings. Reads as
 // forensic / technical, far better suited to the concept than Arial.
-const grotesk = Space_Grotesk({
-  variable: "--font-grotesk",
-  subsets: ["latin"],
-  display: "swap",
-});
-
 // JetBrains Mono — the "evidence log" voice: labels, tags, metadata, the
 // monospaced texture that signals structured analysis.
-const monoAccent = JetBrains_Mono({
-  variable: "--font-mono-accent",
-  subsets: ["latin"],
-  display: "swap",
-});
+// Both ship in @bitbaum/design-tokens; ./fonts is generated from it.
+import { grotesk, monoAccent } from "./fonts";
 
 export const metadata: Metadata = {
   title: "truthseeker — first-principles article analysis",

@@ -15,6 +15,9 @@ importers:
       '@bitbaum/ai-kit':
         specifier: ^1.22.0
         version: 1.22.0(react@19.3.1)
+      '@bitbaum/design-tokens':
+        specifier: ^1.3.0
+        version: 1.3.0
       entities:
         specifier: ^8.1.0
         version: 8.1.0
@@ -149,6 +152,11 @@ packages:
     peerDependenciesMeta:
       react:
         optional: true
+
+  '@bitbaum/design-tokens@1.3.0':
+    resolution: {integrity: sha512-9TVZGx+lilXdQf1aWjm3IcqxejTHjU0J4+fVLHBcJ0nKLQ41isEc9+QGFXekUWZlPO9NMIGZNKE4a58cg4jgKQ==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@cacheable/memory@2.2.0':
     resolution: {integrity: sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ==}
@@ -2712,6 +2720,8 @@ snapshots:
       react: 19.3.1
     transitivePeerDependencies:
       - canvas
+
+  '@bitbaum/design-tokens@1.3.0': {}
 
   '@cacheable/memory@2.2.0':
     dependencies:

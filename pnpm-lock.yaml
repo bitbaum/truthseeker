@@ -16,8 +16,8 @@ importers:
         specifier: ^1.24.0
         version: 1.24.0(react@19.3.1)
       '@bitbaum/design-tokens':
-        specifier: github:bitbaum/design-tokens#8b82accab3775f3e18ed2fc61de41ba2127afae7
-        version: https://codeload.github.com/bitbaum/design-tokens/tar.gz/8b82accab3775f3e18ed2fc61de41ba2127afae7
+        specifier: ^1.4.0
+        version: 1.4.0
       entities:
         specifier: ^8.1.0
         version: 8.1.0
@@ -153,9 +153,8 @@ packages:
       react:
         optional: true
 
-  '@bitbaum/design-tokens@https://codeload.github.com/bitbaum/design-tokens/tar.gz/8b82accab3775f3e18ed2fc61de41ba2127afae7':
-    resolution: {gitHosted: true, integrity: sha512-PtcwqCUsylzp1GYwJdmKg8xKaNd0aHuLOR8Cjw6RW9/2JycUNfU9+CsUOE3MP0T2HMKzT8Nz3jyS8lf/9dlkOw==, tarball: https://codeload.github.com/bitbaum/design-tokens/tar.gz/8b82accab3775f3e18ed2fc61de41ba2127afae7}
-    version: 1.4.0
+  '@bitbaum/design-tokens@1.4.0':
+    resolution: {integrity: sha512-ltw8j2Q1GM78O7Y+YxGRAVOrvAtLPwL9LR+F1u1uX7PIuYFNaqGDW4XRe3yL+f7aGcAgGVGuWV7OxHRuFkKRKg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2722,7 +2721,7 @@ snapshots:
     transitivePeerDependencies:
       - canvas
 
-  '@bitbaum/design-tokens@https://codeload.github.com/bitbaum/design-tokens/tar.gz/8b82accab3775f3e18ed2fc61de41ba2127afae7': {}
+  '@bitbaum/design-tokens@1.4.0': {}
 
   '@cacheable/memory@2.2.0':
     dependencies:

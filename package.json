@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@bitbaum/ai-kit": "^1.24.0",
-    "@bitbaum/design-tokens": "github:bitbaum/design-tokens#07a4380e8cf076db3906732a7aa39aaee8d47ccb",
+    "@bitbaum/design-tokens": "github:bitbaum/design-tokens#443d27875a8c4719029fff085053f2735d881366",
     "entities": "^8.1.0",
     "limitkit": "^0.2.1",
     "next": "16.4.3",

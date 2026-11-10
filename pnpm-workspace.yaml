@@ -3,10 +3,15 @@
 allowBuilds:
   esbuild: true
   unrs-resolver: true
+# Our own packages are published by our own tagged workflows; minimumReleaseAge
+# would refuse each fresh publish until it ages. One scope glob covers every
+# @bitbaum package; the four unscoped ones are named (fleet SHARED.md).
 minimumReleaseAgeExclude:
-  - "@bitbaum/ai-kit"
-  - limitkit@0.2.1
-  - "@bitbaum/design-tokens@1.3.0 || 1.3.1 || 1.4.0 || 1.5.2"
+  - "@bitbaum/*"
+  - limitkit
+  - bip-kit
+  - threadkit
+  - ai-forms
 
 overrides:
   # Security floors (2026-10-30 dev-toolchain sweep): stay inside the

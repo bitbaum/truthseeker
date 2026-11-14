@@ -21,7 +21,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@bitbaum/ai-kit": "^1.28.0",
+    "@bitbaum/ai-kit": "^1.29.0",
     "@bitbaum/design-tokens": "^1.7.1",
     "entities": "^8.1.0",
     "limitkit": "^0.2.1",
